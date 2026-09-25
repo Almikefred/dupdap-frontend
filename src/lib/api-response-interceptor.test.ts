@@ -50,7 +50,12 @@ describe('Axios 401 response interceptor', () => {
 
     // Mock window.location
     Object.defineProperty(window, 'location', {
-      value: { href: '' },
+      value: {
+        href: '',
+        pathname: '/dashboard',
+        search: '',
+        assign: vi.fn(),
+      },
       writable: true,
       configurable: true,
     });
@@ -81,8 +86,33 @@ describe('Axios 401 response interceptor', () => {
     const err = { response: { status: 401 } };
     await expect(responseErrorHandler?.(err)).rejects.toEqual(err);
 
+    expect(redirectToLogin).toHaveBeenCalledWith('/dashboard');
+  });
+
+  it('invokes registered auth redirect handler when present on 401', async () => {
+    const { setAuthRedirectHandler } = await import('./auth-redirect');
+    const mockHandler = vi.fn();
+    setAuthRedirectHandler(mockHandler);
+
+    const err = { response: { status: 401 
+
+    const err = { response: { status: 401 } };
+    await expect(responseErrorHandler?.(err)).rejects.toEqual(err);
+
     expect(redirectToLogin).toHaveBeenCalled();
     expect(window.location.href).not.toBe('/auth/login');
+  });
+
+  it('invokes registered auth redirect handler when present on 401', async () => {
+    const { setAuthRedirectHandler } = await import('./auth-redirect');
+    const mockHandler = vi.fn();
+    setAuthRedirectHandler(mockHandler);
+
+    const err = { response: { status: 401 } };
+    await expect(responseErrorHandler?.(err)).rejects.toEqual(err);
+
+    expect(mockHandler).toHaveBeenCalledWith('/dashboard');
+    setAuthRedirectHandler(null);
   });
 
   it('does not clear auth state on a non-401 error (e.g. 403)', async () => {
@@ -94,12 +124,10 @@ describe('Axios 401 response interceptor', () => {
   });
 
   it('does not redirect on a non-401 error (e.g. 500)', async () => {
-    window.location.href = '/dashboard';
-
     const err = { response: { status: 500 } };
     await expect(responseErrorHandler?.(err)).rejects.toEqual(err);
 
-    expect(window.location.href).toBe('/dashboard');
+    expect(window.location.assign).not.toHaveBeenCalled();
   });
 
   it('passes through the original error on rejection for 401', async () => {
