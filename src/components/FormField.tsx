@@ -3,16 +3,22 @@ import { useId } from 'react';
 interface FormFieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label: string;
   error?: string;
+  labelClassName?: string;
+  hideLabel?: boolean;
 }
 
-export function FormField({ label, error, id, className, ...props }: FormFieldProps) {
+export function FormField({ label, error, id, className, labelClassName, hideLabel, ...props }: FormFieldProps) {
   const generatedId = useId();
   const inputId = id ?? generatedId;
   const errorId = `${inputId}-error`;
 
+  const labelClasses = hideLabel
+    ? `sr-only ${labelClassName ?? ''}`.trim()
+    : `label ${labelClassName ?? ''}`.trim();
+
   return (
     <div>
-      <label htmlFor={inputId} className="label">
+      <label htmlFor={inputId} className={labelClasses}>
         {label}
       </label>
       <input
