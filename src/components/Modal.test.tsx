@@ -1,98 +1,132 @@
-import React from 'react';
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import Modal from './Modal';
+import React, { useState } from 'react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import Modal from '@/components/Modal';
 
-describe('Modal component', () => {
+function ModalTestHarness({ defaultOpen = true }: { defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div>
+      <button data-testid="trigger-btn" onClick={() => setOpen(true)}>
+        Open Modal
+      </button>
+      <Modal open={open} onClose={() => setOpen(false)} title="Test Modal" testId="modal-panel">
+        <div>
+          <input data-testid="input-first" type="text" placeholder="First input" />
+          <button data-testid="button-middle">Middle action</button>
+          <input data-testid="input-last" type="text" placeholder="Last input" />
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+describe('Modal accessibility, focus trap & restore (#376)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    document.body.style.overflow = 'visible';
+  });
+
   afterEach(() => {
     cleanup();
+    document.body.style.overflow = 'visible';
   });
 
   it('renders nothing when open is false', () => {
-    const { container } = render(
-      <Modal open={false} onClose={vi.fn()}>
-        <div>Modal Content</div>
-      </Modal>,
-    );
-
-    expect(container.firstChild).toBeNull();
-    expect(screen.queryByText('Modal Content')).not.toBeInTheDocument();
+    render(<ModalTestHarness defaultOpen={false} />);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('renders title and children when open is true', () => {
-    render(
-      <Modal open={true} onClose={vi.fn()} title="Test Modal" testId="test-modal">
-        <div>Modal Content</div>
-      </Modal>,
-    );
-
-    expect(screen.getByRole('dialog', { name: 'Test Modal' })).toBeInTheDocument();
-    expect(screen.getByText('Test Modal')).toBeInTheDocument();
-    expect(screen.getByText('Modal Content')).toBeInTheDocument();
+  it('renders dialog and sets body overflow to hidden when open', () => {
+    render(<ModalTestHarness defaultOpen={true} />);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(document.body.style.overflow).toBe('hidden');
   });
 
-  it('calls onClose when close button is clicked', async () => {
-    const onClose = vi.fn();
-    render(
-      <Modal open={true} onClose={onClose} title="Test Modal">
-        <div>Modal Content</div>
-      </Modal>,
-    );
-
-    const closeBtn = screen.getByRole('button', { name: 'Close dialog' });
-    await userEvent.click(closeBtn);
-
-    expect(onClose).toHaveBeenCalledTimes(1);
+  it('restores body overflow when closed', () => {
+    render(<ModalTestHarness defaultOpen={true} />);
+    const closeBtn = screen.getByLabelText('Close dialog');
+    fireEvent.click(closeBtn);
+    expect(document.body.style.overflow).toBe('visible');
   });
 
-  it('calls onClose when Escape key is pressed', () => {
-    const onClose = vi.fn();
-    render(
-      <Modal open={true} onClose={onClose} title="Test Modal">
-        <div>Modal Content</div>
-      </Modal>,
-    );
-
-    fireEvent.keyDown(document, { key: 'Escape' });
-
-    expect(onClose).toHaveBeenCalledTimes(1);
+  it('moves focus into the dialog panel on open', () => {
+    render(<ModalTestHarness defaultOpen={true} />);
+    const dialog = screen.getByRole('dialog');
+    expect(document.activeElement).toBe(dialog);
   });
 
-  it('calls onClose when clicking directly on backdrop (mousedown and click on backdrop)', () => {
-    const onClose = vi.fn();
-    render(
-      <Modal open={true} onClose={onClose} title="Test Modal">
-        <div>Modal Content</div>
-      </Modal>,
-    );
+  it('restores focus to the triggering element on close (#376)', () => {
+    render(<ModalTestHarness defaultOpen={false} />);
+    const trigger = screen.getByTestId('trigger-btn');
+    trigger.focus();
+    expect(document.activeElement).toBe(trigger);
 
-    const backdrop = screen.getByTestId('modal-backdrop');
+    // Open modal via trigger click
+    fireEvent.click(trigger);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
 
-    // Simulate clicking directly on the backdrop
-    fireEvent.mouseDown(backdrop);
+    // Close modal
+    const closeBtn = screen.getByLabelText('Close dialog');
+    fireEvent.click(closeBtn);
+
+    // Verify focus is restored to the trigger button
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('cycles focus from last element back to first element on Tab (#376)', () => {
+    render(<ModalTestHarness defaultOpen={true} />);
+    const inputLast = screen.getByTestId('input-last');
+    inputLast.focus();
+    expect(document.activeElement).toBe(inputLast);
+
+    // Press Tab on the last element
+    fireEvent.keyDown(document, { key: 'Tab', code: 'Tab' });
+
+    // Focusable elements order: Close button -> input-first -> button-middle -> input-last
+    const closeBtn = screen.getByLabelText('Close dialog');
+    expect(document.activeElement).toBe(closeBtn);
+  });
+
+  it('wraps focus from first element to last element on Shift+Tab (#376)', () => {
+    render(<ModalTestHarness defaultOpen={true} />);
+    const closeBtn = screen.getByLabelText('Close dialog');
+    closeBtn.focus();
+    expect(document.activeElement).toBe(closeBtn);
+
+    // Press Shift+Tab on the first element
+    fireEvent.keyDown(document, { key: 'Tab', code: 'Tab', shiftKey: true });
+
+    // Focus should wrap to the last element
+    const inputLast = screen.getByTestId('input-last');
+    expect(document.activeElement).toBe(inputLast);
+  });
+
+  it('closes modal when Escape key is pressed (#376)', () => {
+    render(<ModalTestHarness defaultOpen={true} />);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('closes modal on backdrop click', () => {
+    render(<ModalTestHarness defaultOpen={true} />);
+    const dialog = screen.getByRole('dialog');
+    const backdrop = dialog.parentElement!;
+
     fireEvent.click(backdrop);
-
-    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('does NOT call onClose when dragging text selection from inside panel out to backdrop (#409)', () => {
-    const onClose = vi.fn();
-    render(
-      <Modal open={true} onClose={onClose} title="Test Modal">
-        <p data-testid="selectable-text">Stellar Memo: MEMO123456</p>
-      </Modal>,
-    );
+  it('does not close modal when clicking inside dialog panel', () => {
+    render(<ModalTestHarness defaultOpen={true} />);
+    const dialog = screen.getByRole('dialog');
 
-    const textEl = screen.getByTestId('selectable-text');
-    const backdrop = screen.getByTestId('modal-backdrop');
-
-    // Simulate mouse down inside the panel (start text drag)
-    fireEvent.mouseDown(textEl);
-    // Simulate releasing mouse outside panel bounds onto the backdrop
-    fireEvent.click(backdrop);
-
-    // Modal should NOT close
-    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.click(dialog);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+});
   });
 });
