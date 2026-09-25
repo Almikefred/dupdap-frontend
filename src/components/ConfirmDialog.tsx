@@ -15,6 +15,10 @@ interface ConfirmDialogProps {
   testId?: string;
 }
 
+// Shared stack of currently-open dialogs so only the top-most one responds to
+// Escape when multiple dialogs are mounted/open at once (#316).
+const dialogStack: symbol[] = [];
+
 export default function ConfirmDialog({
   open,
   title,
@@ -37,17 +41,23 @@ export default function ConfirmDialog({
 
     panelRef.current?.focus();
 
+    const id = Symbol('confirm-dialog');
+    dialogStack.push(id);
+
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onCancel();
-      }
+      if (e.key !== 'Escape') return;
+      // Only the top-most open dialog should react to Escape (#316).
+      if (dialogStack[dialogStack.length - 1] !== id) return;
+      e.preventDefault();
+      onCancel();
     };
 
     document.addEventListener('keydown', onKeyDown);
 
     return () => {
       document.removeEventListener('keydown', onKeyDown);
+      const index = dialogStack.indexOf(id);
+      if (index !== -1) dialogStack.splice(index, 1);
       document.body.style.overflow = previousOverflow;
     };
   }, [open, onCancel]);
