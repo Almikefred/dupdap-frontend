@@ -224,20 +224,8 @@ export default function PaymentsPage() {
               <QRCodeSVG value={selectedPayment.qrCode ?? selectedPayment.stellarDepositAddress ?? ''} size={200} />
             </div>
             <p className="text-sm font-semibold mb-1">{formatUsd(selectedPayment.amountUsd)}</p>
-            <p className="text-xs text-gray-500 mb-3">{selectedPayment.reference}</p>
-            <div className="bg-gray-50 rounded-lg p-3 text-left">
-              <p className="text-xs text-gray-500 mb-1">Stellar Memo (required)</p>
-              <div className="flex items-center gap-2">
-                <code className="text-sm font-mono font-bold flex-1">{selectedPayment.stellarMemo}</code>
-                <button onClick={() => copyMemo(selectedPayment.stellarMemo)} aria-label="Copy memo">
-                  {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-gray-400" />}
-                </button>
-              </div>
-            </div>
-            <p className="text-xs text-gray-400 mt-3">Send to: {selectedPayment.stellarDepositAddress?.slice(0, 8)}...{selectedPayment.stellarDepositAddress?.slice(-6)}</p>
-          </>
-        )}
-      </Modal>
+            <p className="text-xs text-gray-500 mb-4">{selectedPayment.reference}</p>
+         
 
       <div className="card">
         {error ? (
