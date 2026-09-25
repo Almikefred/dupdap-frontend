@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getApiUrl } from './env';
 import { useAuthStore } from './store';
 import { getApiUrl } from './env';
 import { redirectToLogin } from './auth-redirect';
