@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { merchantApi } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import { FormField } from '@/components/FormField';
+import { getErrorMessage } from '@/lib/errors';
 
 function maskApiKey(key: string): string {
   if (key.length <= 8) return '••••••••';
@@ -51,8 +52,7 @@ export default function SettingsPage() {
       await merchantApi.update(form);
       toast.success('Profile updated');
     } catch (err: any) {
-      const data = err?.response?.data;
-      const errors = data?.errors;
+      const errors = err?.response?.data?.errors;
       if (errors && typeof errors === 'object') {
         const normalized: Record<string, string> = {};
         for (const [field, msg] of Object.entries(errors)) {
@@ -60,9 +60,9 @@ export default function SettingsPage() {
         }
         setFieldErrors(normalized);
         const first = Object.values(normalized)[0];
-        toast.error(first ?? data?.message ?? 'Failed to update profile');
+        toast.error(first ?? getErrorMessage(err));
       } else {
-        toast.error(data?.message ?? 'Failed to update profile');
+        toast.error(getErrorMessage(err));
       }
     } finally {
       setSaving(false);

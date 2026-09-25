@@ -57,6 +57,8 @@ export default function Modal({
   const triggerRef = useRef<Element | null>(null);
   /** Stable identity for this dialog instance in the shared dialog stack. */
   const dialogIdRef = useRef<symbol>(Symbol('modal'));
+  /** Tracks where mousedown originated to prevent closing on dragged selections (#409). */
+  const mouseDownTargetRef = useRef<EventTarget | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -122,10 +124,24 @@ export default function Modal({
 
   if (!open) return null;
 
+  const handleBackdropMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    mouseDownTargetRef.current = e.target;
+  };
+
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Only close if both mousedown and click originated directly on the backdrop overlay,
+    // avoiding accidental closures when dragging text selection outside the panel (#409).
+    if (e.target === e.currentTarget && mouseDownTargetRef.current === e.currentTarget) {
+      onClose();
+    }
+  };
+
   return (
     <div
       className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
-      onClick={onClose}
+      onMouseDown={handleBackdropMouseDown}
+      onClick={handleBackdropClick}
+      data-testid="modal-backdrop"
     >
       <div
         ref={panelRef}
