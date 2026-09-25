@@ -151,6 +151,19 @@ describe('PaymentsPage', () => {
       expect(screen.getByTestId('payments-error')).toBeInTheDocument();
       expect(screen.getByTestId('payments-error')).toHaveTextContent('Network error loading payments');
     });
+
+    expect(screen.queryByText('No payments yet')).not.toBeInTheDocument();
+  });
+
+  it('renders fallback error message when error object has no message property', async () => {
+    vi.mocked(paymentsApi.list).mockRejectedValue({});
+
+    render(<PaymentsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('payments-error')).toBeInTheDocument();
+      expect(screen.getByTestId('payments-error')).toHaveTextContent('Network error loading payments');
+    });
     expect(screen.queryByText('No payments yet')).not.toBeInTheDocument();
   });
 

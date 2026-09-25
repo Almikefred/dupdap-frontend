@@ -87,9 +87,11 @@ export default function PaymentsPage() {
   const [form, setForm] = useState({ amountUsd: '', description: '', customerEmail: '', expiryMinutes: '30' });
   const [creating, setCreating] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [error, setError] = useState('');
 
   const load = async (p = 1) => {
     setLoading(true);
+    setError('');
     try {
       setError('');
       const { data } = await paymentsApi.list(p, 20);
@@ -235,7 +237,11 @@ export default function PaymentsPage() {
       </Modal>
 
       <div className="card">
-        {error ? <div data-testid="payments-error" className="px-6 py-4 text-sm text-red-500">{error}</div> : null}
+        {error ? (
+          <div data-testid="payments-error" className="px-6 py-4 text-sm text-red-500">
+            {error}
+          </div>
+        ) : null}
         <div className="md:hidden divide-y divide-gray-50">
           {loading ? (
             <SkeletonList rows={6} />
