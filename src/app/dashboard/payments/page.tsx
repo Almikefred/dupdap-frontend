@@ -15,6 +15,9 @@ import type { Payment } from '@/lib/types';
 const PAYMENT_TABLE_COLUMNS = 5;
 const MAX_DESCRIPTION_LENGTH = 255;
 
+const EXPIRY_MIN_MINUTES = 5;
+const EXPIRY_MAX_MINUTES = 1440;
+
 // ---------------------------------------------------------------------------
 // Memoized row components — re-render only when the payment data or the
 // callback reference changes, not on modal open/close or filter typing in
@@ -107,6 +110,13 @@ export default function PaymentsPage() {
 
   useEffect(() => { load(page); }, [page]);
 
+  // Reset the copy-success indicator whenever a different payment is selected
+  // (or the modal is closed), so a stale checkmark from a previously copied
+  // memo never leaks into another payment's QR modal (#326).
+  useEffect(() => {
+    setCopied(false);
+  }, [selectedPayment]);
+
   const createPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreating(true);
@@ -116,11 +126,21 @@ export default function PaymentsPage() {
         toast.error('Enter a valid amount');
         return;
       }
+      const expiryMinutes = parseInt(form.expiryMinutes, 10);
+      if (
+        !Number.isFinite(expiryMinutes) ||
+        !Number.isInteger(expiryMinutes) ||
+        expiryMinutes < EXPIRY_MIN_MINUTES ||
+        expiryMinutes > EXPIRY_MAX_MINUTES
+      ) {
+        toast.error(`Expiry must be a whole number between ${EXPIRY_MIN_MINUTES} and ${EXPIRY_MAX_MINUTES} minutes`);
+        return;
+      }
       const { data } = await paymentsApi.create({
         amountUsd,
         description: form.description || undefined,
         customerEmail: form.customerEmail || undefined,
-        expiryMinutes: parseInt(form.expiryMinutes, 10),
+        expiryMinutes,
       });
       setSelectedPayment(data);
       setShowCreate(false);
@@ -146,6 +166,7 @@ export default function PaymentsPage() {
   };
 
   const showPagination = total > 20 || page > 1;
+  const totalPages = Math.max(1, Math.ceil(total / 20));
 
   return (
     <div className="p-8">
@@ -225,7 +246,9 @@ export default function PaymentsPage() {
             </div>
             <p className="text-sm font-semibold mb-1">{formatUsd(selectedPayment.amountUsd)}</p>
             <p className="text-xs text-gray-500 mb-4">{selectedPayment.reference}</p>
-         
+          </>
+        )}
+      </Modal>
 
       <div className="card">
         {error ? (

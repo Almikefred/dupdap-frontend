@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, within, cleanup, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import toast from 'react-hot-toast';
 import PaymentsPage from './page';
 import { paymentsApi } from '@/lib/api';
 import type { Payment } from '@/lib/types';
@@ -82,6 +83,38 @@ describe('PaymentsPage', () => {
     expect(screen.getByTestId('pagination-prev')).not.toBeDisabled();
   });
 
+  it('exposes pagination controls in a labeled nav landmark with descriptive button labels', async () => {
+    mockListResponse([basePayment], 45);
+
+    render(<PaymentsPage />);
+
+    const nav = await screen.findByRole('navigation', { name: 'Pagination' });
+    const prev = within(nav).getByTestId('pagination-prev');
+    const next = within(nav).getByTestId('pagination-next');
+
+    expect(prev).toHaveAccessibleName(/page 1 of 3/i);
+    expect(next).toHaveAccessibleName(/page 2 of 3/i);
+  });
+
+  it('updates the Next button label to reflect the target page', async () => {
+    mockListResponse([basePayment], 45);
+
+    render(<PaymentsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('pagination-next')).not.toBeDisabled();
+    });
+
+    await userEvent.click(screen.getByTestId('pagination-next'));
+
+    await waitFor(() => {
+      expect(paymentsApi.list).toHaveBeenCalledWith(2, 20);
+    });
+
+    const next = screen.getByTestId('pagination-next');
+    expect(next).toHaveAccessibleName(/page 3 of 3/i);
+  });
+
   it('submits the create-payment form with parsed numeric fields', async () => {
     const user = userEvent.setup();
     const createdPayment = { ...basePayment, id: 'pay-new', reference: 'REF-NEW', amountUsd: 12.5 };
@@ -110,6 +143,44 @@ describe('PaymentsPage', () => {
         expiryMinutes: 60,
       });
     });
+  });
+
+  it('rejects an out-of-range expiryMinutes before calling the API', async () => {
+    render(<PaymentsPage />);
+
+    await userEvent.click(screen.getByTestId('new-payment-button'));
+
+    const modal = await screen.findByTestId('create-payment-modal');
+    const fields = within(modal);
+
+    await userEvent.type(fields.getByLabelText('Amount (USD)'), '10');
+    await userEvent.clear(fields.getByLabelText('Expires in (minutes)'));
+    await userEvent.type(fields.getByLabelText('Expires in (minutes)'), '2');
+    await userEvent.click(fields.getByTestId('create-payment-submit'));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalled();
+    });
+    expect(paymentsApi.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects an expiryMinutes above the upper bound before calling the API', async () => {
+    render(<PaymentsPage />);
+
+    await userEvent.click(screen.getByTestId('new-payment-button'));
+
+    const modal = await screen.findByTestId('create-payment-modal');
+    const fields = within(modal);
+
+    await userEvent.type(fields.getByLabelText('Amount (USD)'), '10');
+    await userEvent.clear(fields.getByLabelText('Expires in (minutes)'));
+    await userEvent.type(fields.getByLabelText('Expires in (minutes)'), '1441');
+    await userEvent.click(fields.getByTestId('create-payment-submit'));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalled();
+    });
+    expect(paymentsApi.create).not.toHaveBeenCalled();
   });
 
   it('clears the form and shows the QR modal after a successful create', async () => {
@@ -177,5 +248,29 @@ describe('PaymentsPage', () => {
       expect(screen.getByTestId('payments-error')).toHaveTextContent("Couldn't load payments.");
     });
     expect(screen.queryByText('No payments yet')).not.toBeInTheDocument();
+  });
+
+  it('resets the copy-success state when a different payment is selected', async () => {
+    const paymentA: Payment = { ...basePayment, id: 'pay-a', reference: 'REF-A', stellarMemo: 'MEMO-A' };
+    const paymentB: Payment = { ...basePayment, id: 'pay-b', reference: 'REF-B', stellarMemo: 'MEMO-B' };
+    mockListResponse([paymentA, paymentB], 2);
+
+    render(<PaymentsPage />);
+
+    const qrButtons = await screen.findAllByTestId('view-qr-button');
+
+    await userEvent.click(qrButtons[0]);
+    const modalA = await screen.findByTestId('payment-qr-modal');
+    await userEvent.click(within(modalA).getByTestId('copy-memo-button'));
+    expect(within(modalA).getByTestId('copy-memo-button')).toHaveAttribute('data-copied', 'true');
+
+    await userEvent.click(within(modalA).getByTestId('payment-qr-close'));
+    await waitFor(() => {
+      expect(screen.queryByTestId('payment-qr-modal')).not.toBeInTheDocument();
+    });
+
+    await userEvent.click(qrButtons[1]);
+    const modalB = await screen.findByTestId('payment-qr-modal');
+    expect(within(modalB).getByTestId('copy-memo-button')).toHaveAttribute('data-copied', 'false');
   });
 });
