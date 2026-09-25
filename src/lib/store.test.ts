@@ -100,6 +100,23 @@ describe('useAuthStore', () => {
       await useAuthStore.persist.rehydrate();
       expect(useAuthStore.getState().hasHydrated).toBe(true);
     });
+
+    it('sets hasHydrated to true upon rehydration', async () => {
+      useAuthStore.setState({ hasHydrated: false });
+      expect(useAuthStore.getState().hasHydrated).toBe(false);
+
+      await useAuthStore.persist.rehydrate();
+      expect(useAuthStore.getState().hasHydrated).toBe(true);
+    });
+
+    it('sets hasHydrated to true even when storage is empty (first visit)', async () => {
+      localStorage.clear();
+      useAuthStore.setState({ hasHydrated: false });
+      expect(useAuthStore.getState().hasHydrated).toBe(false);
+
+      await useAuthStore.persist.rehydrate();
+      expect(useAuthStore.getState().hasHydrated).toBe(true);
+    });
   });
 
   describe('clearLegacyAccessTokenKey()', () => {
